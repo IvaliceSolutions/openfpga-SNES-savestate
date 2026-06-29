@@ -325,6 +325,8 @@ module core_top (
 
     if (bridge_addr[31:28] == 4'h2) begin
       bridge_rd_data <= sd_read_data;
+    end else if (bridge_addr[31:28] == 4'h4) begin
+      bridge_rd_data <= save_state_bridge_read_data;
     end
   end
 
@@ -408,10 +410,13 @@ module core_top (
 
   wire dataslot_allcomplete;
 
-  wire savestate_supported = 0;
-  wire [31:0] savestate_addr;
-  wire [31:0] savestate_size;
-  wire [31:0] savestate_maxloadsize;
+  // J1a: openFPGA-side save state wiring enabled (engine still stubbed -> a save
+  // won't actually complete yet; this only un-grays the Memories option).
+  wire savestate_supported = 1;
+  wire [31:0] savestate_addr = 32'h40000000;
+  wire [31:0] savestate_size = 32'h00100000;  // 1MB placeholder; real size set in J1b
+  wire [31:0] savestate_maxloadsize = savestate_size + 32'h1000;
+  wire [31:0] save_state_bridge_read_data;
 
   wire savestate_start;
   wire savestate_start_ack;
@@ -495,6 +500,51 @@ module core_top (
       .datatable_wren(datatable_wren),
       .datatable_data(datatable_data),
       .datatable_q   (datatable_q)
+  );
+
+  // ---------------------------------------------------------------------------
+  // Save state controller (J1a)
+  // Bridge/API side fully wired (same proven module as the NES core). The
+  // core-facing save-state bus is tied off for now; the real engine + PSRAM
+  // scratch arrive in J1b. With savestate_supported=1 this un-grays the
+  // Memories save-state option. Do NOT actually create a save yet: ss_req is
+  // held low so a triggered save will not complete.
+  // ---------------------------------------------------------------------------
+  save_state_controller save_state_controller (
+      .clk_74a      (clk_74a),
+      .clk_mem_85_9 (clk_mem_85_9),
+      .clk_ppu_21_47(clk_sys_21_48),
+
+      .bridge_wr                  (bridge_wr),
+      .bridge_rd                  (bridge_rd),
+      .bridge_endian_little       (bridge_endian_little),
+      .bridge_addr                (bridge_addr),
+      .bridge_wr_data             (bridge_wr_data),
+      .save_state_bridge_read_data(save_state_bridge_read_data),
+
+      .savestate_load      (savestate_load),
+      .savestate_load_ack_s (savestate_load_ack),
+      .savestate_load_busy_s(savestate_load_busy),
+      .savestate_load_ok_s  (savestate_load_ok),
+      .savestate_load_err_s (savestate_load_err),
+
+      .savestate_start      (savestate_start),
+      .savestate_start_ack_s (savestate_start_ack),
+      .savestate_start_busy_s(savestate_start_busy),
+      .savestate_start_ok_s  (savestate_start_ok),
+      .savestate_start_err_s (savestate_start_err),
+
+      // Core-side bus: stubbed until J1b
+      .ss_save(),
+      .ss_load(),
+      .ss_din (64'h0),
+      .ss_dout(),
+      .ss_addr(26'h0),
+      .ss_rnw (1'b1),
+      .ss_req (1'b0),
+      .ss_be  (8'h0),
+      .ss_ack (),
+      .ss_busy(1'b0)
   );
 
   reg ioctl_download = 0;

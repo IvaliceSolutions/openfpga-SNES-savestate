@@ -144,7 +144,13 @@ architecture rtl of SNES is
 	signal SMP_WE : std_logic;
 	signal SMP_CPU_DO : std_logic_vector(7 downto 0);
 	signal SMP_CPU_DI	: std_logic_vector(7 downto 0);
-	signal SMP_EN : std_logic;
+	signal SMP_EN_R : std_logic;
+	signal SMP_EN_F : std_logic;
+	signal SPC_S0 : std_logic;
+	-- J1b: save-state data outputs (tied/unused until the engine lands in J1b-2)
+	signal SS_SMP_DO : std_logic_vector(7 downto 0);
+	signal SS_DSP_DO : std_logic_vector(7 downto 0);
+	signal SS_PPU_DO : std_logic_vector(7 downto 0);
 
 	signal APU_RAM_A : std_logic_vector(15 downto 0);
 	signal APU_RAM_DO	: std_logic_vector(7 downto 0);
@@ -332,7 +338,10 @@ begin
 		HSYNC			=> HSYNC,
 		VSYNC			=> VSYNC,
 		
-		BG_EN			=> DBG_BG_EN
+		BG_EN			=> DBG_BG_EN,
+
+		SS_A			=> x"00",
+		SS_DO			=> SS_PPU_DO
 	);
 
 
@@ -346,7 +355,8 @@ begin
 		CLK			=> DSPCLK,
 		RST_N			=> RST_N,
 		CE				=> SMP_CE,
-		ENABLE		=> SMP_EN,
+		EN_R			=> SMP_EN_R,
+		EN_F			=> SMP_EN_F,
 		SYSCLKF_CE	=> INT_SYSCLKF_CE,
 		
 		A				=> SMP_A,
@@ -364,10 +374,16 @@ begin
  
 		IO_ADDR		=> IO_ADDR,
 		IO_DAT  		=> IO_DAT,
-		IO_WR			=> IO_WR
+		IO_WR			=> IO_WR,
+
+		SPC_S0		=> SPC_S0,
+		SS_ADDR		=> x"00",
+		SS_WR			=> '0',
+		SS_DI			=> x"00",
+		SS_DO			=> SS_SMP_DO
 	);
 
-	-- DSP 
+	-- DSP
 	DSP: entity work.DSP 
 	port map (
 		CLK			=> DSPCLK,
@@ -375,7 +391,8 @@ begin
 		ENABLE		=> ENABLE,
 		PAL			=> PAL,
 				
-		SMP_EN    	=> SMP_EN,
+		SMP_EN_F  	=> SMP_EN_F,
+		SMP_EN_R  	=> SMP_EN_R,
 		SMP_A     	=> SMP_A,
 		SMP_DO    	=> SMP_DO,
 		SMP_DI 		=> SMP_DI,
@@ -396,7 +413,13 @@ begin
 		IO_ADDR		=> IO_ADDR,
 		IO_DAT  		=> IO_DAT,
 		IO_WR			=> IO_WR,
-		
+
+		SS_ADDR		=> "000000000",
+		SS_REGS_SEL	=> '0',
+		SS_WR			=> '0',
+		SS_DI			=> x"00",
+		SS_DO			=> SS_DSP_DO,
+
 		AUDIO_L		=> AUDIO_L,
 		AUDIO_R		=> AUDIO_R
 	);

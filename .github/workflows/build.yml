@@ -41,6 +41,12 @@ jobs:
           echo "Running command: $cmd"
           eval $cmd
 
+      - name: "📈 Detailed timing paths"
+        shell: bash
+        if: always()
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/build raetro/quartus:21.1 quartus_sta -t report_timing.tcl || echo "sta report step failed"
+
       - name: Upload failure artifact
         uses: actions/upload-artifact@v4
         if: failure()

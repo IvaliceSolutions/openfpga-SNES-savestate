@@ -81,16 +81,4 @@ if { [lindex $argv 0] == "ntsc" } {
 
 execute_flow -compile
 
-# Detailed worst-case setup path report (register source/dest) for timing closure
-if {[catch {
-  load_package sta
-  create_timing_netlist -model slow
-  read_sdc
-  update_timing_netlist
-  report_timing -setup -npaths 12 -detail full_path -file projects/output_files/worst_paths.rpt
-  delete_timing_netlist
-} err]} {
-  puts "report_timing failed: $err"
-}
-
 project_close

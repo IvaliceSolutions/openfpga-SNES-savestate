@@ -159,10 +159,7 @@ module ss_psram_arbiter (
   end
 
   psram #(
-      // Tell psram.sv the clock is faster than it really is (85.9MHz) so it
-      // inserts MORE cycles per access -> more real settling time at the cram
-      // pins. Adds physical margin against the timing-violated scratch path.
-      .CLOCK_SPEED(133.12)
+      .CLOCK_SPEED(85.9)
   ) psram (
       .clk(clk),
       .bank_sel(ps_bank_sel),

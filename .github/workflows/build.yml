@@ -58,6 +58,7 @@ jobs:
             projects/output_files/*.fit.rpt
             projects/output_files/*.sta.summary
             projects/output_files/*.fit.summary
+            projects/output_files/worst_paths.rpt
           if-no-files-found: warn
 
       - name: Reverse bitstream

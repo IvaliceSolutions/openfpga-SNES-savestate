@@ -61,15 +61,16 @@ module ss_psram_arbiter (
   localparam ST_DONE   = 3'd4;  // toggle ack
 
   reg  [2:0] state = ST_IDLE;
-  reg  [1:0] sub;               // which 16-bit word of the 64-bit beat (0..3)
-  reg        req_seen;          // latched ss_ddr_req level we're servicing
+  reg  [1:0] sub = 2'd0;        // which 16-bit word of the 64-bit beat (0..3)
+  reg        req_seen = 1'b0;   // latched ss_ddr_req level we're servicing
+  initial ss_ddr_ack = 1'b0;    // power-up so req==ack (idle) from cycle 0
   reg [63:0] wdata;            // latched write data
   reg [21:3] waddr;           // latched 64-bit word address
   reg        wwe;
   reg [ 7:0] wbe;
 
   // Synchronize the requester's toggle (clk_sys) into this (clk_mem) domain
-  reg req_s1, req_s2;
+  reg req_s1 = 1'b0, req_s2 = 1'b0;
   always @(posedge clk) begin
     req_s1 <= ss_ddr_req;
     req_s2 <= req_s1;

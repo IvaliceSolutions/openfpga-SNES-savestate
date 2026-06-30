@@ -78,7 +78,7 @@ module ss_glue_fsm #(
   assign eng_ddr_ack  = glue_owns_ddr ? 1'b0   : arb_ddr_ack;
 
   // Synchronize the arbiter's ack toggle (clk_mem) into this (clk_sys) domain
-  reg ack_s1, ack_s2;
+  reg ack_s1 = 1'b0, ack_s2 = 1'b0;
   always @(posedge clk) begin
     ack_s1 <= arb_ddr_ack;
     ack_s2 <= ack_s1;

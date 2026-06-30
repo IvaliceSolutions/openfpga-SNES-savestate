@@ -55,10 +55,17 @@ module ss_psram_arbiter (
 
   // -- Arbiter state --
   localparam ST_IDLE   = 3'd0;  // ARAM pass-through
+  localparam ST_GAP    = 3'd5;  // recovery/settle gap before a sub-access
   localparam ST_START  = 3'd1;  // launch a 16-bit sub-access
   localparam ST_WAIT   = 3'd2;  // wait for psram to finish
   localparam ST_NEXT   = 3'd3;  // capture/advance
   localparam ST_DONE   = 3'd4;  // toggle ack
+
+  // cram recovery/settle cycles before each scratch sub-access (chip is
+  // deselected during the gap). ARAM (isolated accesses) doesn't need this;
+  // the scratch does 4 back-to-back + a die0->die1 bank switch per beat.
+  localparam GAP_CYCLES = 4'd10;
+  reg  [3:0] gap = 0;
 
   reg  [2:0] state = ST_IDLE;
   reg  [1:0] sub = 2'd0;        // which 16-bit word of the 64-bit beat (0..3)
@@ -122,8 +129,15 @@ module ss_psram_arbiter (
           wdata <= ss_ddr_do;
           wbe   <= ss_ddr_be;
           sub   <= 2'd0;
-          state <= ST_START;
+          gap   <= GAP_CYCLES;
+          state <= ST_GAP;
         end
+      end
+
+      ST_GAP: begin
+        // cram deselected here (state != ST_IDLE, no en) -> recovery/settle
+        if (gap == 0) state <= ST_START;
+        else gap <= gap - 4'd1;
       end
 
       ST_START: begin
@@ -145,7 +159,8 @@ module ss_psram_arbiter (
           state <= ST_DONE;
         end else begin
           sub   <= sub + 2'd1;
-          state <= ST_START;
+          gap   <= GAP_CYCLES;
+          state <= ST_GAP;
         end
       end
 

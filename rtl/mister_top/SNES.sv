@@ -448,14 +448,23 @@ module MAIN_SNES (
       .SS_TOSD(1'b0),
       .SS_SLOT(2'b00),
       .SS_AVAIL(),
-      .SS_DDR_DI(64'h0),
-      .SS_DDR_ACK(1'b0),
-      .SS_DDR_DO(),
-      .SS_DDR_ADDR(),
-      .SS_DDR_WE(),
-      .SS_DDR_BE(),
-      .SS_DDR_REQ()
+      .SS_DDR_DI(ss_ddr_di),
+      .SS_DDR_ACK(ss_ddr_ack),
+      .SS_DDR_DO(ss_ddr_do),
+      .SS_DDR_ADDR(ss_ddr_addr),
+      .SS_DDR_WE(ss_ddr_we),
+      .SS_DDR_BE(ss_ddr_be),
+      .SS_DDR_REQ(ss_ddr_req)
   );
+
+  // Save-state scratch storage interface (engine <-> ss_psram_arbiter on cram1)
+  wire [21:3] ss_ddr_addr;
+  wire        ss_ddr_we;
+  wire [63:0] ss_ddr_do;
+  wire [ 7:0] ss_ddr_be;
+  wire        ss_ddr_req;
+  wire [63:0] ss_ddr_di;
+  wire        ss_ddr_ack;
 
   wire reset = core_reset | cart_download | spc_download | bk_loading | clearing_ram | msu_data_download | parser_delay != 0;
 
@@ -639,24 +648,29 @@ module MAIN_SNES (
   wire [ 7:0] aram_data = clearing_ram ? aram_fill_data : ARAM_D;
   wire [15:0] aram_16_data = psram_aram_addr[0] ? {aram_data, 8'h0} : {8'h0, aram_data};
 
-  psram #(
-      .CLOCK_SPEED(85.9)
-  ) aram (
+  // cram1 is shared by ARAM (die 0) and the save-state scratch (die 1) via the
+  // arbiter. Transparent to ARAM when no save is in progress.
+  ss_psram_arbiter aram (
       .clk(clk_mem_85_9),
 
-      .bank_sel(0),
-      // Remove bottom most bit, since this is a 8bit address and the RAM wants a 16bit address
-      .addr(psram_aram_addr[15:1]),
+      .aram_addr({7'b0, psram_aram_addr[15:1]}),
+      .aram_write_en(clearing_ram ? 1'b1 : ~ARAM_CE_N & ~ARAM_WE_N),
+      .aram_data_in(aram_16_data),
+      .aram_write_high_byte(psram_aram_addr[0]),
+      .aram_write_low_byte(~psram_aram_addr[0]),
+      .aram_read_en(~ARAM_CE_N & ~ARAM_OE_N),
+      .aram_data_out(aram_16_out),
+      .aram_read_avail(),
 
-      .write_en(clearing_ram ? 1'b1 : ~ARAM_CE_N & ~ARAM_WE_N),
-      .data_in(aram_16_data),
-      .write_high_byte(psram_aram_addr[0]),
-      .write_low_byte(~psram_aram_addr[0]),
+      .ss_ddr_addr(ss_ddr_addr),
+      .ss_ddr_we(ss_ddr_we),
+      .ss_ddr_do(ss_ddr_do),
+      .ss_ddr_be(ss_ddr_be),
+      .ss_ddr_req(ss_ddr_req),
+      .ss_ddr_di(ss_ddr_di),
+      .ss_ddr_ack(ss_ddr_ack),
 
-      .read_en (~ARAM_CE_N & ~ARAM_OE_N),
-      .data_out(aram_16_out),
-
-      // Actual PSRAM interface
+      // Actual PSRAM interface (cram1)
       .cram_a(cram1_a),
       .cram_dq(cram1_dq),
       .cram_wait(cram1_wait),

@@ -49,12 +49,12 @@ module main #(
     output        VRAM2_WE_N,
     output        VRAM_OE_N,
 
-    output [15:0] ARAM_ADDR,
-    output [ 7:0] ARAM_D,
-    input  [ 7:0] ARAM_Q,
-    output        ARAM_CE_N,
-    output        ARAM_OE_N,
-    output        ARAM_WE_N,
+    output reg [15:0] ARAM_ADDR,
+    output reg [ 7:0] ARAM_D,
+    input      [ 7:0] ARAM_Q,
+    output reg        ARAM_CE_N,
+    output reg        ARAM_OE_N,
+    output reg        ARAM_WE_N,
 
     output GSU_ACTIVE,
     input  GSU_TURBO,
@@ -168,6 +168,11 @@ module main #(
   wire        SS_DSPN_REGS_SEL, SS_DSPN_RAM_SEL;
   wire        SS_GSU_SEL;
 
+  // ARAM from the SNES core (muxed with the save-state takeover below)
+  wire [15:0] SNES_ARAM_ADDR;
+  wire  [7:0] SNES_ARAM_D;
+  wire        SNES_ARAM_CE_N, SNES_ARAM_OE_N, SNES_ARAM_WE_N;
+
   SNES SNES (
       .mclk  (MCLK),
       .dspclk(ACLK),
@@ -212,12 +217,12 @@ module main #(
       .vram_wra_n(VRAM1_WE_N),
       .vram_wrb_n(VRAM2_WE_N),
 
-      .aram_addr(ARAM_ADDR),
-      .aram_d(ARAM_D),
+      .aram_addr(SNES_ARAM_ADDR),
+      .aram_d(SNES_ARAM_D),
       .aram_q(ARAM_Q),
-      .aram_ce_n(ARAM_CE_N),
-      .aram_oe_n(ARAM_OE_N),
-      .aram_we_n(ARAM_WE_N),
+      .aram_ce_n(SNES_ARAM_CE_N),
+      .aram_oe_n(SNES_ARAM_OE_N),
+      .aram_we_n(SNES_ARAM_WE_N),
 
       .joy1_di(JOY1_DI),
       .joy2_di(JOY2_DI),
@@ -933,6 +938,33 @@ module main #(
     endcase
 
     if (MSU_SEL) DI = MSU_DO;
+
+    // ---- Save-state bus takeover during capture/restore (J1b-2c) ----
+    // All SS_* selects are 0 while the engine is idle -> pure ARAM pass-through.
+    if (SS_ARAM_SEL) begin
+      ARAM_ADDR = SS_EXT_ADDR[15:0];
+      ARAM_D    = SS_DO;
+      ARAM_CE_N = 1'b0;
+      ARAM_OE_N = PARD_N;
+      ARAM_WE_N = PAWR_N;
+    end else begin
+      ARAM_ADDR = SNES_ARAM_ADDR;
+      ARAM_D    = SNES_ARAM_D;
+      ARAM_CE_N = SNES_ARAM_CE_N;
+      ARAM_OE_N = SNES_ARAM_OE_N;
+      ARAM_WE_N = SNES_ARAM_WE_N;
+    end
+
+    if (SS_BSRAM_SEL) begin
+      BSRAM_ADDR = SS_EXT_ADDR[19:0];
+      BSRAM_D    = SS_DO;
+      BSRAM_CE_N = 1'b0;
+      BSRAM_OE_N = PARD_N;
+      BSRAM_WE_N = PAWR_N;
+    end
+
+    if (SS_DO_OVR)  DI       = SS_DO;
+    if (SS_ROM_OVR) ROM_ADDR = SS_ROM_ADDR;
   end
 
 endmodule

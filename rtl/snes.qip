@@ -20,6 +20,7 @@ set_global_assignment -name VERILOG_FILE              [file join $::quartus(qip_
 set_global_assignment -name SYSTEMVERILOG_FILE        [file join $::quartus(qip_path) "savestates.sv"]
 set_global_assignment -name SYSTEMVERILOG_FILE        [file join $::quartus(qip_path) "savestates_map.sv"]
 set_global_assignment -name SYSTEMVERILOG_FILE        [file join $::quartus(qip_path) "savestates_regs.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE        [file join $::quartus(qip_path) "savestates_sa1.sv"]
 set_global_assignment -name SYSTEMVERILOG_FILE        [file join $::quartus(qip_path) "lightgun.sv"]
 set_global_assignment -name SYSTEMVERILOG_FILE        [file join $::quartus(qip_path) "ioport.sv"]
 set_global_assignment -name VERILOG_FILE              [file join $::quartus(qip_path) "hps_ext.v"]

@@ -126,6 +126,7 @@ module main #(
     input         SS_TOSD,
     input  [ 1:0] SS_SLOT,
     output        SS_AVAIL,
+    output        SS_BUSY,
     input  [63:0] SS_DDR_DI,
     input         SS_DDR_ACK,
     output [63:0] SS_DDR_DO,
@@ -154,8 +155,7 @@ module main #(
 
   wire [ 5:0] MAP_ACTIVE;
 
-  // Save state bus (J1b-2)
-  wire        SS_BUSY;
+  // Save state bus (J1b-2). SS_BUSY is now a module output (see port list).
   wire  [7:0] SS_DO;
   wire [23:0] SS_ROM_ADDR;
   wire [19:0] SS_EXT_ADDR;

@@ -145,7 +145,19 @@ module MAIN_SNES (
 
     // Audio
     output wire [15:0] audio_l,
-    output wire [15:0] audio_r
+    output wire [15:0] audio_r,
+
+    // Save state controller bus (openFPGA save_state_controller side)
+    input  wire        ss_save,
+    input  wire        ss_load,
+    input  wire [63:0] ss_dout,
+    output wire [63:0] ss_din,
+    output wire [25:0] ss_addr,
+    output wire        ss_rnw,
+    output wire        ss_req,
+    output wire [ 7:0] ss_be,
+    input  wire        ss_ack,
+    output wire        ss_busy
 );
   parameter USE_CX4 = 1'b0;
   parameter USE_SDD1 = 1'b0;
@@ -441,23 +453,34 @@ module MAIN_SNES (
       .AUDIO_L(audio_l),
       .AUDIO_R(audio_r),
 
-      // Save state (J1b-2a: engine present but not yet driven; storage stubbed)
+      // Save state (J1b-2c: engine driven by the glue FSM; SS_DDR via the glue)
       .RAM_SIZE(sram_size),
-      .SS_SAVE(1'b0),
-      .SS_LOAD(1'b0),
+      .SS_SAVE(eng_save),
+      .SS_LOAD(eng_load),
       .SS_TOSD(1'b0),
       .SS_SLOT(2'b00),
       .SS_AVAIL(),
-      .SS_DDR_DI(ss_ddr_di),
-      .SS_DDR_ACK(ss_ddr_ack),
-      .SS_DDR_DO(ss_ddr_do),
-      .SS_DDR_ADDR(ss_ddr_addr),
-      .SS_DDR_WE(ss_ddr_we),
-      .SS_DDR_BE(ss_ddr_be),
-      .SS_DDR_REQ(ss_ddr_req)
+      .SS_BUSY(eng_busy),
+      .SS_DDR_DI(eng_ddr_di),
+      .SS_DDR_ACK(eng_ddr_ack),
+      .SS_DDR_DO(eng_ddr_do),
+      .SS_DDR_ADDR(eng_ddr_addr),
+      .SS_DDR_WE(eng_ddr_we),
+      .SS_DDR_BE(eng_ddr_be),
+      .SS_DDR_REQ(eng_ddr_req)
   );
 
-  // Save-state scratch storage interface (engine <-> ss_psram_arbiter on cram1)
+  // Engine <-> glue (the engine's own SS_DDR access)
+  wire [21:3] eng_ddr_addr;
+  wire        eng_ddr_we;
+  wire [63:0] eng_ddr_do;
+  wire [ 7:0] eng_ddr_be;
+  wire        eng_ddr_req;
+  wire [63:0] eng_ddr_di;
+  wire        eng_ddr_ack;
+  wire        eng_save, eng_load, eng_busy;
+
+  // glue <-> arbiter (PSRAM scratch on cram1)
   wire [21:3] ss_ddr_addr;
   wire        ss_ddr_we;
   wire [63:0] ss_ddr_do;
@@ -465,6 +488,44 @@ module MAIN_SNES (
   wire        ss_ddr_req;
   wire [63:0] ss_ddr_di;
   wire        ss_ddr_ack;
+
+  // The glue bridges the openFPGA save_state_controller (via MAIN_SNES ss_* ports)
+  // to the engine + the PSRAM scratch.
+  ss_glue_fsm glue (
+      .clk(clk_sys),
+      .reset_n(~reset),
+
+      .ss_save (ss_save),
+      .ss_load (ss_load),
+      .ss_dout (ss_dout),
+      .ss_din  (ss_din),
+      .ss_addr (ss_addr),
+      .ss_rnw  (ss_rnw),
+      .ss_req  (ss_req),
+      .ss_be   (ss_be),
+      .ss_ack  (ss_ack),
+      .ss_busy (ss_busy),
+
+      .eng_save(eng_save),
+      .eng_load(eng_load),
+      .eng_busy(eng_busy),
+
+      .eng_ddr_addr(eng_ddr_addr),
+      .eng_ddr_we  (eng_ddr_we),
+      .eng_ddr_do  (eng_ddr_do),
+      .eng_ddr_be  (eng_ddr_be),
+      .eng_ddr_req (eng_ddr_req),
+      .eng_ddr_di  (eng_ddr_di),
+      .eng_ddr_ack (eng_ddr_ack),
+
+      .arb_ddr_addr(ss_ddr_addr),
+      .arb_ddr_we  (ss_ddr_we),
+      .arb_ddr_do  (ss_ddr_do),
+      .arb_ddr_be  (ss_ddr_be),
+      .arb_ddr_req (ss_ddr_req),
+      .arb_ddr_di  (ss_ddr_di),
+      .arb_ddr_ack (ss_ddr_ack)
+  );
 
   wire reset = core_reset | cart_download | spc_download | bk_loading | clearing_ram | msu_data_download | parser_delay != 0;
 

@@ -430,6 +430,13 @@ module core_top (
   wire savestate_load_ok;
   wire savestate_load_err;
 
+  // save_state_controller <-> MAIN_SNES (glue) core-side bus
+  wire        core_ss_save, core_ss_load;
+  wire [63:0] core_ss_din, core_ss_dout;
+  wire [25:0] core_ss_addr;
+  wire        core_ss_rnw, core_ss_req, core_ss_ack, core_ss_busy;
+  wire [ 7:0] core_ss_be;
+
   wire osnotify_inmenu;
 
   wire [31:0] rtc_date;
@@ -535,16 +542,16 @@ module core_top (
       .savestate_start_err_s (savestate_start_err),
 
       // Core-side bus: stubbed until J1b
-      .ss_save(),
-      .ss_load(),
-      .ss_din (64'h0),
-      .ss_dout(),
-      .ss_addr(26'h0),
-      .ss_rnw (1'b1),
-      .ss_req (1'b0),
-      .ss_be  (8'h0),
-      .ss_ack (),
-      .ss_busy(1'b0)
+      .ss_save(core_ss_save),
+      .ss_load(core_ss_load),
+      .ss_din (core_ss_din),
+      .ss_dout(core_ss_dout),
+      .ss_addr(core_ss_addr),
+      .ss_rnw (core_ss_rnw),
+      .ss_req (core_ss_req),
+      .ss_be  (core_ss_be),
+      .ss_ack (core_ss_ack),
+      .ss_busy(core_ss_busy)
   );
 
   reg ioctl_download = 0;
@@ -956,7 +963,19 @@ module core_top (
 
       // Audio
       .audio_l(audio_l),
-      .audio_r(audio_r)
+      .audio_r(audio_r),
+
+      // Save state controller bus (J1b-2c)
+      .ss_save(core_ss_save),
+      .ss_load(core_ss_load),
+      .ss_dout(core_ss_dout),
+      .ss_din (core_ss_din),
+      .ss_addr(core_ss_addr),
+      .ss_rnw (core_ss_rnw),
+      .ss_req (core_ss_req),
+      .ss_be  (core_ss_be),
+      .ss_ack (core_ss_ack),
+      .ss_busy(core_ss_busy)
   );
 
   // Video

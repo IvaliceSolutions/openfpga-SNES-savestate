@@ -20,7 +20,7 @@
 //
 module ss_glue_fsm #(
     parameter [31:0] SS_SIZE_BYTES = 32'h00010000,  // must match core.json savestate_size
-    parameter [ 1:0] DEBUG_MODE    = 2'd3  // 0=real, 1=counter, 2=engine+timeout+scratch, 3=arbiter round-trip
+    parameter [ 1:0] DEBUG_MODE    = 2'd0  // 0=real engine, 1=counter, 2=engine+timeout+scratch, 3=arbiter round-trip
 ) (
     input  wire        clk,
     input  wire        reset_n,
@@ -141,7 +141,8 @@ module ss_glue_fsm #(
           // In DEBUG_MODE 2 a timeout guarantees we proceed and stream the
           // scratch even if the engine never asserts/clears busy (diagnostic).
           timeout <= timeout + 1'b1;
-          if ((eng_busy_d && ~eng_busy) || (DEBUG_MODE == 2'd2 && &timeout)) begin
+          // proceed when the engine finishes capturing, or after a safety timeout
+          if ((eng_busy_d && ~eng_busy) || (&timeout)) begin
             glue_owns_ddr <= 1; idx <= 0; state <= S_SAVE_RD;
           end
         end

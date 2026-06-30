@@ -94,7 +94,16 @@ entity SNES is
 		IO_ADDR     : in std_logic_vector(16 downto 0);
 		IO_DAT  		: in std_logic_vector(15 downto 0);
 		IO_WR 		: in std_logic;
-		
+
+		SS_ADDR     : in std_logic_vector(8 downto 0);
+		SS_BUSY     : in std_logic;
+		SS_REGS_SEL : in std_logic;
+		SS_SMP_SEL  : in std_logic;
+		SS_WR       : in std_logic;
+		SS_DI       : in std_logic_vector(7 downto 0);
+		SS_SPC_DO   : out std_logic_vector(7 downto 0);
+		SS_PPU_DO   : out std_logic_vector(7 downto 0);
+
 		TURBO			: in std_logic;
 		
 		DBG_BG_EN	: in std_logic_vector(4 downto 0);
@@ -144,13 +153,12 @@ architecture rtl of SNES is
 	signal SMP_WE : std_logic;
 	signal SMP_CPU_DO : std_logic_vector(7 downto 0);
 	signal SMP_CPU_DI	: std_logic_vector(7 downto 0);
-	signal SMP_EN_R : std_logic;
 	signal SMP_EN_F : std_logic;
-	signal SPC_S0 : std_logic;
-	-- J1b: save-state data outputs (tied/unused until the engine lands in J1b-2)
-	signal SS_SMP_DO : std_logic_vector(7 downto 0);
-	signal SS_DSP_DO : std_logic_vector(7 downto 0);
-	signal SS_PPU_DO : std_logic_vector(7 downto 0);
+	signal SMP_EN_R : std_logic;
+
+	signal SPC_S0 : std_logic; -- SPC state 0 for Save state
+
+	signal DSP_EN : std_logic;
 
 	signal APU_RAM_A : std_logic_vector(15 downto 0);
 	signal APU_RAM_DO	: std_logic_vector(7 downto 0);
@@ -160,6 +168,9 @@ architecture rtl of SNES is
 	signal GENIE		: std_logic;
 	signal GENIE_DO	: std_logic_vector(7 downto 0);
 	signal GENIE_DI   : std_logic_vector(7 downto 0);
+
+	signal SS_DSP_DO  : std_logic_vector(7 downto 0);
+	signal SS_SMP_DO  : std_logic_vector(7 downto 0);
 
 	component CODES is
 		generic(
@@ -340,8 +351,8 @@ begin
 		
 		BG_EN			=> DBG_BG_EN,
 
-		SS_A			=> x"00",
-		SS_DO			=> SS_PPU_DO
+		SS_A		=> INT_CA(7 downto 0),
+		SS_DO		=> SS_PPU_DO
 	);
 
 
@@ -355,8 +366,8 @@ begin
 		CLK			=> DSPCLK,
 		RST_N			=> RST_N,
 		CE				=> SMP_CE,
-		EN_R			=> SMP_EN_R,
-		EN_F			=> SMP_EN_F,
+		EN_R		   => SMP_EN_R,
+		EN_F		   => SMP_EN_F,
 		SYSCLKF_CE	=> INT_SYSCLKF_CE,
 		
 		A				=> SMP_A,
@@ -371,28 +382,31 @@ begin
 		CPU_DO		=> SMP_CPU_DO,
 		CS				=> INT_PA(6),
 		CS_N			=> INT_PA(7),
+
+		SPC_S0		=> SPC_S0,
  
 		IO_ADDR		=> IO_ADDR,
 		IO_DAT  		=> IO_DAT,
 		IO_WR			=> IO_WR,
 
-		SPC_S0		=> SPC_S0,
-		SS_ADDR		=> x"00",
-		SS_WR			=> '0',
-		SS_DI			=> x"00",
-		SS_DO			=> SS_SMP_DO
+		SS_ADDR		=> SS_ADDR(7 downto 0),
+		SS_WR		=> SS_SMP_SEL and SS_WR,
+		SS_DI		=> SS_DI,
+		SS_DO		=> SS_SMP_DO
 	);
 
-	-- DSP
+	DSP_EN <= ENABLE and not (SS_BUSY and SPC_S0); -- Pause DSP on State 0 during Save state
+
+	-- DSP 
 	DSP: entity work.DSP 
 	port map (
 		CLK			=> DSPCLK,
 		RST_N			=> RST_N,
-		ENABLE		=> ENABLE,
+		ENABLE		=> DSP_EN,
 		PAL			=> PAL,
 				
 		SMP_EN_F  	=> SMP_EN_F,
-		SMP_EN_R  	=> SMP_EN_R,
+		SMP_EN_R    => SMP_EN_R,
 		SMP_A     	=> SMP_A,
 		SMP_DO    	=> SMP_DO,
 		SMP_DI 		=> SMP_DI,
@@ -414,15 +428,17 @@ begin
 		IO_DAT  		=> IO_DAT,
 		IO_WR			=> IO_WR,
 
-		SS_ADDR		=> "000000000",
-		SS_REGS_SEL	=> '0',
-		SS_WR			=> '0',
-		SS_DI			=> x"00",
+		SS_ADDR			=> SS_ADDR,
+		SS_REGS_SEL		=> SS_REGS_SEL,
+		SS_WR			=> SS_WR,
+		SS_DI			=> SS_DI,
 		SS_DO			=> SS_DSP_DO,
 
 		AUDIO_L		=> AUDIO_L,
 		AUDIO_R		=> AUDIO_R
 	);
+
+	SS_SPC_DO <= SS_SMP_DO when SS_SMP_SEL = '1' else SS_DSP_DO;
 
 	CA <= INT_CA;
 	CPURD_N <= INT_CPURD_N;

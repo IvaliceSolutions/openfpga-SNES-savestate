@@ -439,7 +439,22 @@ module MAIN_SNES (
       .MSU_ENABLE(0),  // TODO
 
       .AUDIO_L(audio_l),
-      .AUDIO_R(audio_r)
+      .AUDIO_R(audio_r),
+
+      // Save state (J1b-2a: engine present but not yet driven; storage stubbed)
+      .RAM_SIZE(sram_size),
+      .SS_SAVE(1'b0),
+      .SS_LOAD(1'b0),
+      .SS_TOSD(1'b0),
+      .SS_SLOT(2'b00),
+      .SS_AVAIL(),
+      .SS_DDR_DI(64'h0),
+      .SS_DDR_ACK(1'b0),
+      .SS_DDR_DO(),
+      .SS_DDR_ADDR(),
+      .SS_DDR_WE(),
+      .SS_DDR_BE(),
+      .SS_DDR_REQ()
   );
 
   wire reset = core_reset | cart_download | spc_download | bk_loading | clearing_ram | msu_data_download | parser_delay != 0;

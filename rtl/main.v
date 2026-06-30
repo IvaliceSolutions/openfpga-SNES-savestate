@@ -117,7 +117,22 @@ module main #(
     input         MSU_ENABLE,
 
     output [15:0] AUDIO_L,
-    output [15:0] AUDIO_R
+    output [15:0] AUDIO_R,
+
+    // Save state (J1b-2)
+    input  [ 3:0] RAM_SIZE,
+    input         SS_SAVE,
+    input         SS_LOAD,
+    input         SS_TOSD,
+    input  [ 1:0] SS_SLOT,
+    output        SS_AVAIL,
+    input  [63:0] SS_DDR_DI,
+    input         SS_DDR_ACK,
+    output [63:0] SS_DDR_DO,
+    output [21:3] SS_DDR_ADDR,
+    output        SS_DDR_WE,
+    output [ 7:0] SS_DDR_BE,
+    output        SS_DDR_REQ
 );
 
   parameter USE_DLH = 1'b1;
@@ -138,6 +153,20 @@ module main #(
   wire        REFRESH;
 
   wire [ 5:0] MAP_ACTIVE;
+
+  // Save state bus (J1b-2)
+  wire        SS_BUSY;
+  wire  [7:0] SS_DO;
+  wire [23:0] SS_ROM_ADDR;
+  wire [19:0] SS_EXT_ADDR;
+  wire  [7:0] SS_SPC_DI;
+  wire  [7:0] SS_PPU_DI;
+  wire        SS_DO_OVR;
+  wire        SS_ROM_OVR;
+  wire        SS_ARAM_SEL, SS_DSP_REGS_SEL, SS_SMP_SEL;
+  wire        SS_BSRAM_SEL;
+  wire        SS_DSPN_REGS_SEL, SS_DSPN_RAM_SEL;
+  wire        SS_GSU_SEL;
 
   SNES SNES (
       .mclk  (MCLK),
@@ -229,8 +258,74 @@ module main #(
       .turbo(TURBO),
 
       .audio_l(AUDIO_L),
-      .audio_r(AUDIO_R)
+      .audio_r(AUDIO_R),
+
+      .ss_addr    (SS_EXT_ADDR[8:0]),
+      .ss_busy    (SS_BUSY),
+      .ss_regs_sel(SS_DSP_REGS_SEL),
+      .ss_smp_sel (SS_SMP_SEL),
+      .ss_wr      (~PAWR_N),
+      .ss_di      (SS_DO),
+      .ss_spc_do  (SS_SPC_DI),
+      .ss_ppu_do  (SS_PPU_DI)
   );
+
+  // ---- Save state engine (J1b-2). Coprocessor ports tied off ('none' variant). ----
+  savestates ss (
+      .reset_n(RESET_N),
+      .clk(MCLK),
+      .save(SS_SAVE),
+      .save_sd(SS_TOSD),
+      .load(SS_LOAD),
+      .slot(SS_SLOT),
+      .ram_size(RAM_SIZE),
+      .rom_type(ROM_TYPE),
+      .sysclkf_ce(SYSCLKF_CE),
+      .sysclkr_ce(SYSCLKR_CE),
+      .romsel_n(ROMSEL_N),
+      .rom_q(ROM_Q),
+      .ca(CA),
+      .cpurd_n(CPURD_N),
+      .cpuwr_n(CPUWR_N),
+      .pa(PA),
+      .pard_n(PARD_N),
+      .pawr_n(PAWR_N),
+      .di(DO),
+      .ss_do(SS_DO),
+      .rom_addr(SS_ROM_ADDR),
+      .ddr_di(SS_DDR_DI),
+      .ddr_ack(SS_DDR_ACK),
+      .ddr_do(SS_DDR_DO),
+      .ddr_addr(SS_DDR_ADDR),
+      .ddr_we(SS_DDR_WE),
+      .ddr_be(SS_DDR_BE),
+      .ddr_req(SS_DDR_REQ),
+      .ext_addr(SS_EXT_ADDR),
+      .spc_di(SS_SPC_DI),
+      .aram_sel(SS_ARAM_SEL),
+      .dsp_regs_sel(SS_DSP_REGS_SEL),
+      .smp_regs_sel(SS_SMP_SEL),
+      .ppu_di(SS_PPU_DI),
+      .bsram_sel(SS_BSRAM_SEL),
+      .bsram_di(BSRAM_Q),
+      .dspn_regs_sel(SS_DSPN_REGS_SEL),
+      .dspn_ram_sel(SS_DSPN_RAM_SEL),
+      .dspn_di(8'h00),
+      .gsu_regs_sel(SS_GSU_SEL),
+      .gsu_di(8'h00),
+      .sa1_active(1'b0),
+      .sa1_a(24'h0),
+      .sa1_di(8'h00),
+      .sa1_rd_n(1'b1),
+      .sa1_wr_n(1'b1),
+      .sa1_sa1_romsel(1'b0),
+      .sa1_sns_romsel(1'b0),
+      .ss_do_ovr(SS_DO_OVR),
+      .ss_rom_ovr(SS_ROM_OVR),
+      .ss_busy(SS_BUSY)
+  );
+
+  assign SS_AVAIL = ~|ROM_TYPE[7:4];  // basic carts only (no coprocessors in 'none')
 
   wire [7:0] MSU_DO;
   wire       MSU_SEL;

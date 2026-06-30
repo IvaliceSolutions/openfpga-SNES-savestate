@@ -68,7 +68,13 @@ module ss_psram_arbiter (
   reg        wwe;
   reg [ 7:0] wbe;
 
-  wire scratch_pending = (ss_ddr_req != ss_ddr_ack) && (state == ST_IDLE);
+  // Synchronize the requester's toggle (clk_sys) into this (clk_mem) domain
+  reg req_s1, req_s2;
+  always @(posedge clk) begin
+    req_s1 <= ss_ddr_req;
+    req_s2 <= req_s1;
+  end
+  wire scratch_pending = (req_s2 != ss_ddr_ack) && (state == ST_IDLE);
 
   // -- PSRAM driver muxing: ARAM when idle, FSM when servicing scratch --
   reg         ps_bank_sel;
@@ -141,7 +147,7 @@ module ss_psram_arbiter (
       end
 
       ST_DONE: begin
-        ss_ddr_ack <= ss_ddr_req;  // toggle to match -> request complete
+        ss_ddr_ack <= req_s2;  // toggle to match the synchronized request
         state <= ST_IDLE;
       end
 

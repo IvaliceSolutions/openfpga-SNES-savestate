@@ -20,7 +20,7 @@
 //
 module ss_glue_fsm #(
     parameter [31:0] SS_SIZE_BYTES = 32'h00010000,  // must match core.json savestate_size
-    parameter [ 1:0] DEBUG_MODE    = 2'd2  // 0=real, 1=counter pattern, 2=real engine + timeout + stream scratch
+    parameter [ 1:0] DEBUG_MODE    = 2'd3  // 0=real, 1=counter, 2=engine+timeout+scratch, 3=arbiter round-trip
 ) (
     input  wire        clk,
     input  wire        reset_n,
@@ -77,7 +77,13 @@ module ss_glue_fsm #(
   assign eng_ddr_di   = arb_ddr_di;
   assign eng_ddr_ack  = glue_owns_ddr ? 1'b0   : arb_ddr_ack;
 
-  wire arb_busy = (g_req != arb_ddr_ack);  // toggle handshake
+  // Synchronize the arbiter's ack toggle (clk_mem) into this (clk_sys) domain
+  reg ack_s1, ack_s2;
+  always @(posedge clk) begin
+    ack_s1 <= arb_ddr_ack;
+    ack_s2 <= ack_s1;
+  end
+  wire arb_busy = (g_req != ack_s2);  // toggle handshake
 
   localparam S_IDLE      = 4'd0;
   localparam S_SAVE_WAIT = 4'd1;   // wait engine capture done
@@ -90,11 +96,16 @@ module ss_glue_fsm #(
   localparam S_LOAD_WR   = 4'd8;   // launch scratch write
   localparam S_LOAD_WRW  = 4'd9;   // wait write ack
   localparam S_LOAD_ENG  = 4'd10;  // pulse engine load, wait done
-  localparam S_DONE      = 4'd11;
-  localparam S_DBG       = 4'd12;
-  localparam S_DBG_W     = 4'd13;
+  localparam S_DONE      = 5'd11;
+  localparam S_DBG       = 5'd12;
+  localparam S_DBG_W     = 5'd13;
+  localparam S_DW        = 5'd14;
+  localparam S_DW_W      = 5'd15;
+  localparam S_DR        = 5'd16;
+  localparam S_DR_W      = 5'd17;
+  localparam S_DR_P      = 5'd18;
 
-  reg [3:0]  state;
+  reg [4:0]  state;
   reg [25:0] idx;
   reg        eng_busy_d;
   reg        eng_load_started;
@@ -115,6 +126,8 @@ module ss_glue_fsm #(
           ss_busy <= 0; glue_owns_ddr <= 0; idx <= 0; eng_load_started <= 0; timeout <= 0;
           if (ss_save && DEBUG_MODE == 2'd1) begin
             ss_busy <= 1; state <= S_DBG;          // bypass engine: stream a counter pattern
+          end else if (ss_save && DEBUG_MODE == 2'd3) begin
+            ss_busy <= 1; glue_owns_ddr <= 1; state <= S_DW;  // arbiter round-trip
           end else if (ss_save) begin
             ss_busy <= 1; eng_save <= 1; state <= S_SAVE_WAIT;  // real engine (mode 0/2)
           end else if (ss_load) begin
@@ -191,6 +204,37 @@ module ss_glue_fsm #(
           if (ss_ack) begin
             if (idx == SS_WORDS - 1) state <= S_DONE;
             else begin idx <= idx + 1'b1; state <= S_DBG; end
+          end
+        end
+
+        // ---- DEBUG mode 3: write pattern to scratch, read back, stream ----
+        S_DW: begin  // write pattern word to scratch
+          if (~arb_busy) begin
+            g_addr <= idx[18:0]; g_we <= 1; g_do <= {32'h534E4553, 6'd0, idx};
+            g_req <= ~g_req; state <= S_DW_W;
+          end
+        end
+        S_DW_W: begin
+          if (~arb_busy) begin
+            if (idx == SS_WORDS - 1) begin idx <= 0; state <= S_DR; end
+            else begin idx <= idx + 1'b1; state <= S_DW; end
+          end
+        end
+        S_DR: begin  // read scratch word back
+          if (~arb_busy) begin
+            g_addr <= idx[18:0]; g_we <= 0; g_req <= ~g_req; state <= S_DR_W;
+          end
+        end
+        S_DR_W: begin
+          if (~arb_busy) begin
+            ss_din <= arb_ddr_di; ss_addr <= idx; ss_rnw <= 0; ss_be <= 8'hFF;
+            ss_req <= 1; state <= S_DR_P;
+          end
+        end
+        S_DR_P: begin
+          if (ss_ack) begin
+            if (idx == SS_WORDS - 1) state <= S_DONE;
+            else begin idx <= idx + 1'b1; state <= S_DR; end
           end
         end
 

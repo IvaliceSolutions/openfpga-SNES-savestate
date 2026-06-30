@@ -20,7 +20,7 @@
 //
 module ss_glue_fsm #(
     parameter [31:0] SS_SIZE_BYTES = 32'h00010000,  // must match core.json savestate_size
-    parameter        DEBUG_PATTERN = 1'b1            // bypass engine, stream a known pattern
+    parameter [ 1:0] DEBUG_MODE    = 2'd2  // 0=real, 1=counter pattern, 2=real engine + timeout + stream scratch
 ) (
     input  wire        clk,
     input  wire        reset_n,
@@ -98,6 +98,7 @@ module ss_glue_fsm #(
   reg [25:0] idx;
   reg        eng_busy_d;
   reg        eng_load_started;
+  reg [23:0] timeout;
 
   always @(posedge clk or negedge reset_n) begin
     if (~reset_n) begin
@@ -111,11 +112,11 @@ module ss_glue_fsm #(
 
       case (state)
         S_IDLE: begin
-          ss_busy <= 0; glue_owns_ddr <= 0; idx <= 0; eng_load_started <= 0;
-          if (ss_save && DEBUG_PATTERN) begin
-            ss_busy <= 1; state <= S_DBG;          // bypass engine: stream a pattern
+          ss_busy <= 0; glue_owns_ddr <= 0; idx <= 0; eng_load_started <= 0; timeout <= 0;
+          if (ss_save && DEBUG_MODE == 2'd1) begin
+            ss_busy <= 1; state <= S_DBG;          // bypass engine: stream a counter pattern
           end else if (ss_save) begin
-            ss_busy <= 1; eng_save <= 1; state <= S_SAVE_WAIT;
+            ss_busy <= 1; eng_save <= 1; state <= S_SAVE_WAIT;  // real engine (mode 0/2)
           end else if (ss_load) begin
             ss_busy <= 1; glue_owns_ddr <= 1; ss_rnw <= 1; state <= S_LOAD_PULL;
           end
@@ -123,8 +124,11 @@ module ss_glue_fsm #(
 
         // ---------------- SAVE ----------------
         S_SAVE_WAIT: begin
-          // engine asserts eng_busy during capture; falling edge = done
-          if (eng_busy_d && ~eng_busy) begin
+          // engine asserts eng_busy during capture; falling edge = done.
+          // In DEBUG_MODE 2 a timeout guarantees we proceed and stream the
+          // scratch even if the engine never asserts/clears busy (diagnostic).
+          timeout <= timeout + 1'b1;
+          if ((eng_busy_d && ~eng_busy) || (DEBUG_MODE == 2'd2 && &timeout)) begin
             glue_owns_ddr <= 1; idx <= 0; state <= S_SAVE_RD;
           end
         end

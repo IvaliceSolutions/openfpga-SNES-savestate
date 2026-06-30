@@ -126,8 +126,10 @@ module ss_psram_arbiter (
       end
 
       ST_START: begin
-        // psram latches the op this cycle (it goes busy next cycle)
-        state <= ST_WAIT;
+        // Hold read/write_en until the psram actually ACCEPTS the op (busy
+        // rises). Previously we advanced unconditionally, so if the psram was
+        // not yet idle the op was silently dropped -> stale/0xFFFF reads.
+        if (ps_busy) state <= ST_WAIT;
       end
 
       ST_WAIT: begin

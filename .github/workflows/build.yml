@@ -48,6 +48,18 @@ jobs:
           name: failure_output_files
           path: projects/output_files/
 
+      - name: Upload timing/fit reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports
+          path: |
+            projects/output_files/*.sta.rpt
+            projects/output_files/*.fit.rpt
+            projects/output_files/*.sta.summary
+            projects/output_files/*.fit.summary
+          if-no-files-found: warn
+
       - name: Reverse bitstream
         shell: bash
         run: |

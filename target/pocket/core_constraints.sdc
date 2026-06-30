@@ -25,3 +25,18 @@ set_multicycle_path -from [get_clocks {ic|mp1|mf_pllbase_inst|altera_pll_i|*[1].
 
 set_false_path -from {ic|nes|mapper_flags*}
 #set_false_path -from {ic|nes|downloading*}
+
+# Save-state scratch path: glue (clk_sys_21_48) <-> arbiter/psram (clk_mem_85_9).
+# Handshakes are synchronized (2-FF) and data is held stable across them, so
+# these crossings are multicycle, not single-cycle. (J1b-2c)
+set_multicycle_path -from {*ss_glue_fsm:*} -to {*ss_psram_arbiter:*} -setup 3
+set_multicycle_path -from {*ss_glue_fsm:*} -to {*ss_psram_arbiter:*} -hold 2
+set_multicycle_path -from {*ss_psram_arbiter:*} -to {*ss_glue_fsm:*} -setup 3
+set_multicycle_path -from {*ss_psram_arbiter:*} -to {*ss_glue_fsm:*} -hold 2
+set_multicycle_path -from {*savestates:*} -to {*ss_psram_arbiter:*} -setup 3
+set_multicycle_path -from {*savestates:*} -to {*ss_psram_arbiter:*} -hold 2
+set_multicycle_path -from {*ss_psram_arbiter:*} -to {*savestates:*} -setup 3
+set_multicycle_path -from {*ss_psram_arbiter:*} -to {*savestates:*} -hold 2
+# Synchronizer first stages are false paths (metastability handled by the 2-FF).
+set_false_path -to {*ss_psram_arbiter:*|req_s1}
+set_false_path -to {*ss_glue_fsm:*|ack_s1}

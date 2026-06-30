@@ -19,7 +19,7 @@ module tb;
   wire [63:0] ss_di;
   wire        ss_ack;
 
-  wire [21:16] cram_a;  wire [15:0] cram_dq;
+  wire [21:16] cram_a;  wire [15:0] cram_dq;  wire cram_wait;
   wire cram_clk, cram_adv_n, cram_cre, cram_ce0_n, cram_ce1_n, cram_oe_n, cram_we_n, cram_ub_n, cram_lb_n;
 
   ss_psram_arbiter dut (
@@ -29,7 +29,14 @@ module tb;
     .aram_data_out(aram_do), .aram_read_avail(aram_ra),
     .ss_ddr_addr(ss_addr), .ss_ddr_we(ss_we), .ss_ddr_do(ss_do), .ss_ddr_be(ss_be),
     .ss_ddr_req(ss_req), .ss_ddr_di(ss_di), .ss_ddr_ack(ss_ack),
-    .cram_a(cram_a), .cram_dq(cram_dq), .cram_wait(1'b0), .cram_clk(cram_clk),
+    .cram_a(cram_a), .cram_dq(cram_dq), .cram_wait(cram_wait), .cram_clk(cram_clk),
+    .cram_adv_n(cram_adv_n), .cram_cre(cram_cre), .cram_ce0_n(cram_ce0_n), .cram_ce1_n(cram_ce1_n),
+    .cram_oe_n(cram_oe_n), .cram_we_n(cram_we_n), .cram_ub_n(cram_ub_n), .cram_lb_n(cram_lb_n)
+  );
+
+  // Faithful cram chip model on the real psram.sv pins
+  cram_chip cram (
+    .cram_a(cram_a), .cram_dq(cram_dq), .cram_wait(cram_wait), .cram_clk(cram_clk),
     .cram_adv_n(cram_adv_n), .cram_cre(cram_cre), .cram_ce0_n(cram_ce0_n), .cram_ce1_n(cram_ce1_n),
     .cram_oe_n(cram_oe_n), .cram_we_n(cram_we_n), .cram_ub_n(cram_ub_n), .cram_lb_n(cram_lb_n)
   );
@@ -49,10 +56,11 @@ module tb;
   integer cyc = 0;
   always @(posedge clk) begin
     cyc <= cyc + 1;
-    if (cyc < 90)
-      $display("cyc %0d | arb.state=%0d sub=%0d ps_busy=%b ps_we=%b ps_re=%b | psram.st=%0d cnt=%0d busy=%b | ss_req=%b req_s2=%b ack=%b",
-        cyc, dut.state, dut.sub, dut.ps_busy, dut.ps_write_en, dut.ps_read_en,
-        dut.psram.st, dut.psram.cnt, dut.psram.busy, ss_req, dut.req_s2, ss_ack);
+    if (dut.state != 3'd0 && dut.wwe == 1'b0 && cyc < 2000)  // trace scratch READ sub-accesses only
+      $display("cyc %0d | arb.state=%0d sub=%0d ps_re=%b ps_do=%h ss_di=%h | psram.state=%0d busy=%b avail=%b | ce1=%b oe=%b adv=%b dq=%h",
+        cyc, dut.state, dut.sub, dut.ps_read_en, dut.ps_data_out, ss_di,
+        dut.psram.state, dut.psram.busy, dut.ps_read_avail,
+        cram_ce1_n, cram_oe_n, cram_adv_n, cram_dq);
   end
 
   integer guard;

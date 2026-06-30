@@ -40,3 +40,10 @@ set_multicycle_path -from {*ss_psram_arbiter:*} -to {*savestates:*} -hold 2
 # Synchronizer first stages are false paths (metastability handled by the 2-FF).
 set_false_path -to {*ss_psram_arbiter:*|req_s1}
 set_false_path -to {*ss_glue_fsm:*|ack_s1}
+
+# Clients (ARAM on clk_sys_21_48 = divclk[1]) hold their address/data stable for
+# the whole multi-cycle PSRAM access (they wait on `busy`), so the clk_sys ->
+# PSRAM (clk_mem_85_9) paths are multicycle, not single-cycle. This was the
+# dominant -9.6ns violation (CPU MCode -> psram latched_data_in).
+set_multicycle_path -from [get_clocks {ic|mp1|mf_pllbase_inst|altera_pll_i|*[1].*|divclk}] -to {*ss_psram_arbiter:*|psram:psram|*} -setup 4
+set_multicycle_path -from [get_clocks {ic|mp1|mf_pllbase_inst|altera_pll_i|*[1].*|divclk}] -to {*ss_psram_arbiter:*|psram:psram|*} -hold 3

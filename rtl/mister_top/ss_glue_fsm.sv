@@ -19,7 +19,8 @@
 // NOTE: first-cut bring-up module — expect hardware-debug iterations.
 //
 module ss_glue_fsm #(
-    parameter [31:0] SS_SIZE_BYTES = 32'h00100000  // must match core.json savestate_size
+    parameter [31:0] SS_SIZE_BYTES = 32'h00010000,  // must match core.json savestate_size
+    parameter        DEBUG_PATTERN = 1'b1            // bypass engine, stream a known pattern
 ) (
     input  wire        clk,
     input  wire        reset_n,
@@ -90,6 +91,8 @@ module ss_glue_fsm #(
   localparam S_LOAD_WRW  = 4'd9;   // wait write ack
   localparam S_LOAD_ENG  = 4'd10;  // pulse engine load, wait done
   localparam S_DONE      = 4'd11;
+  localparam S_DBG       = 4'd12;
+  localparam S_DBG_W     = 4'd13;
 
   reg [3:0]  state;
   reg [25:0] idx;
@@ -109,7 +112,9 @@ module ss_glue_fsm #(
       case (state)
         S_IDLE: begin
           ss_busy <= 0; glue_owns_ddr <= 0; idx <= 0; eng_load_started <= 0;
-          if (ss_save) begin
+          if (ss_save && DEBUG_PATTERN) begin
+            ss_busy <= 1; state <= S_DBG;          // bypass engine: stream a pattern
+          end else if (ss_save) begin
             ss_busy <= 1; eng_save <= 1; state <= S_SAVE_WAIT;
           end else if (ss_load) begin
             ss_busy <= 1; glue_owns_ddr <= 1; ss_rnw <= 1; state <= S_LOAD_PULL;
@@ -169,6 +174,19 @@ module ss_glue_fsm #(
             eng_load <= 1; eng_load_started <= 1;
           end else if (eng_busy_d && ~eng_busy) begin
             state <= S_DONE;
+          end
+        end
+
+        // ---- DEBUG: stream "SNES"+index, no engine, no scratch ----
+        S_DBG: begin
+          ss_din  <= {32'h534E4553, 6'd0, idx};  // "SNES" + word index
+          ss_addr <= idx; ss_rnw <= 0; ss_be <= 8'hFF;
+          ss_req  <= 1; state <= S_DBG_W;
+        end
+        S_DBG_W: begin
+          if (ss_ack) begin
+            if (idx == SS_WORDS - 1) state <= S_DONE;
+            else begin idx <= idx + 1'b1; state <= S_DBG; end
           end
         end
 

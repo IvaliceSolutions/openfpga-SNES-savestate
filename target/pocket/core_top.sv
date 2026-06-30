@@ -414,7 +414,7 @@ module core_top (
   // won't actually complete yet; this only un-grays the Memories option).
   wire savestate_supported = 1;
   wire [31:0] savestate_addr = 32'h40000000;
-  wire [31:0] savestate_size = 32'h00100000;  // 1MB placeholder; real size set in J1b
+  wire [31:0] savestate_size = 32'h00010000;  // 64KB — debug pattern test (J1b-2c)
   wire [31:0] savestate_maxloadsize = savestate_size + 32'h1000;
   wire [31:0] save_state_bridge_read_data;
 
